@@ -1,0 +1,54 @@
+name: Release Alacritty Graphics ARM64
+
+on:
+  workflow_dispatch: # 允许你手动点击按钮触发
+  push:
+    tags:
+      - 'v*' # 当你推送 v1.0.0 这样的标签时也会自动触发
+
+# 关键：必须给写权限，否则无法创建 Release
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-24.04-arm # 原生 ARM64 服务器
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: graphics # 确保拉取的是 graphics 分支
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake pkg-config libfreetype6-dev libfontconfig1-dev libxcb-xfixes0-dev libxkbcommon-dev python3 libwayland-dev libxkbcommon-x11-dev scdoc
+
+      - name: Build Release
+        run: cargo build --release
+
+      - name: Package Binary
+        run: |
+          # 创建压缩包，方便下载和分发
+          cd target/release
+          tar -czvf alacritty-graphics-arm64.tar.gz alacritty
+          # 把压缩包移回项目根目录，方便下一步上传
+          mv alacritty-graphics-arm64.tar.gz $GITHUB_WORKSPACE/
+
+      - name: Create Release and Upload
+        uses: softprops/action-gh-release@v2
+        with:
+          # 使用当前时间或 Commit SHA 作为标签名（如果是手动触发）
+          tag_name: "graphics-${{ github.run_number }}"
+          name: "Alacritty Graphics ARM64 build ${{ github.run_number }}"
+          body: |
+            自动构建的 Alacritty Graphics 分支 ARM64 版本。
+            包含 Sixel 和 iTerm2 图片协议支持。
+            Commit: ${{ github.sha }}
+          files: alacritty-graphics-arm64.tar.gz
+          draft: false
+          prerelease: true # 因为是第三方补丁分支，标记为预发布更严谨
